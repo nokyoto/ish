@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+init-session(){
+	if [[ -n $PWD ]]; then
+		cwd="$PWD/"
+	else
+		cwd="$HOME/"
+	fi
+	prompt="$cwd> "
+
+	if [[ -e ~/.ishrc ]]; then
+		# shellcheck disable=SC1090
+		source ~/.ishrc
+	fi
+	lastran=
+	begin-interactive
+}
+
+parse-input(){
+	# shellcheck disable=SC2034
+	read -r i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 <<< "$inputString"
+}
+
+begin-interactive(){
+	while true; do
+		display-prompt
+		parse-input
+		input-dispatch
+	done
+}
+
+display-prompt(){
+	printf "%s" "$prompt"
+	read -r inputString
+}
+
+check-path(){
+	type -P "$i0" >/dev/null
+}
+
+check-builtin(){
+	case "$i0" in
+		"cd" | "echo" | "f" | "clear" | "pwd" | "lc" | "exit")
+			return 0
+	esac
+	return 1
+}
+
+bi-cd(){
+	read -r -N1 a <<< "$i1"
+	if [[ "$a" != '~' && "$a" != '/' ]]; then
+		cwd="$cwd/$i1"
+	else
+		cwd="$i1"
+	fi
+	unset a
+}
+
+bi-clear(){
+	printf "\x1b[2J\x1b[0m\x1b[H"
+}
+
+bi-echo(){
+	read -r -N1 a <<< "$i1"
+	if [[ "$a" != '"' ]]; then
+		printf "%s\n" "$i1"
+	fi
+}
+
+bi-pwd(){
+	printf "%s\n" "$cwd"
+}
+
+bi-lc(){
+	if [ -z "$lastran" ]; then
+		echo "ish: no previous command."
+	else
+		inputString="$lastran"
+		parse-input
+		input-dispatch
+	fi
+}
+
+bi-file(){
+	if [ -f "$i1" ]; then
+		exec "./$i1"
+	fi
+}
+
+bi-bye(){
+	exit 0
+}
+
+run-builtin(){
+	case "$i0" in
+		"cd")
+			bi-cd ;;
+		"clear")
+			bi-clear ;;
+		"echo")
+			bi-echo ;;
+		"pwd")
+			bi-pwd ;;
+		"lc")
+			bi-lc ;;
+		"f")
+			bi-file ;;
+		"exit")
+			bi-bye
+	esac
+}
+
+input-dispatch(){
+	if [ -n "$inputString" ]; then
+		if ! check-builtin; then
+			if ! check-path; then
+				echo "command not found: $i0"
+			else
+				lastran=$inputString
+				eval "$i0" "$i1" "$i2" "$i3" "$i4" "$i5" "$i6" "$i7" "$i8" "$i9" # this is bad. don't do this.
+			fi
+		else
+			lastran=$inputString
+			run-builtin
+		fi
+	fi
+}
+
+if [[ $1 != "-c" ]]; then
+	init-session
+fi
